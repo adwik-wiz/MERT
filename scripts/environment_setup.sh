@@ -97,9 +97,11 @@ conda install -y -c conda-forge pysoundfile libsndfile librosa ffmpeg
 pip install pyarrow pydub npy-append-array tensorboardX scikit-learn pandas nnAudio wandb
 pip install "numpy<1.24"
 
+# Retrieve wandb API key from Kaggle Secrets
+WAND_API_KEY=$(python -c "from kaggle_secrets import UserSecretsClient; user_secrets = UserSecretsClient(); print(user_secrets.get_secret('wandb_api_key'))")
 
-wandb login
-
+# Login to wandb using the retrieved API key
+wandb login $WAND_API_KEY
 
 # for fsdp 
 pip install fairscale
