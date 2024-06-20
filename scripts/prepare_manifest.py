@@ -1,8 +1,3 @@
-# This source code is modified from
-# https://github.com/pytorch/fairseq/blob/265df7144c79446f5ea8d835bda6e727f54dad9d/LICENSE
-"""
-Data pre-processing: create tsv files for training (and valiation).
-"""
 import logging
 import re
 import os
@@ -17,13 +12,13 @@ from tqdm import tqdm
 
 _LG = logging.getLogger(__name__)
 
-
 def create_tsv(
     root_dir: Union[str, Path],
     out_dir: Union[str, Path],
     valid_percent: float = 0.01,
     seed: int = 1317,
     extension: str = "flac",
+    file_limit: int = 1000  # Add a parameter for file limit
 ) -> None:
     """Create file lists for training and validation.
     Args:
@@ -32,7 +27,7 @@ def create_tsv(
         valid_percent (float, optional): The percentage of data for validation. (Default: 0.01)
         seed (int): The seed for randomly selecting the validation files.
         extension (str, optional): The extension of audio files. (Default: ``flac``)
-
+        file_limit (int, optional): The number of files to process. (Default: 1000)
     Returns:
         None
     """
@@ -53,7 +48,12 @@ def create_tsv(
         if valid_f is not None:
             print(root_dir, file=valid_f)
 
+        file_count = 0  # Initialize file counter
+
         for fname in tqdm(root_dir.glob(f"**/*.{extension}")):
+            if file_count >= file_limit:
+                break  # Stop processing if file limit is reached
+
             if args.target_rate <= 0:
                 try:
                     frames = torchaudio.info(fname).num_frames
@@ -74,7 +74,7 @@ def create_tsv(
                         converted_fname = Path(os.path.join(args.converted_root_dir, fname.relative_to(root_dir)))
                         os.makedirs(os.path.dirname(converted_fname), exist_ok=True)
                         torchaudio.save(converted_fname, wav, args.target_rate)
-                        frames = wav.shape[1] # = torchaudio.info(converted_fname).num_frames
+                        frames = wav.shape[1]  # = torchaudio.info(converted_fname).num_frames
                         print(f"{converted_fname.relative_to(args.converted_root_dir)}\t{frames}", file=dest)
                     else:
                         frames = torchaudio.info(fname).num_frames
@@ -82,7 +82,8 @@ def create_tsv(
                         print(f"{fname.relative_to(root_dir)}\t{frames}", file=dest)
                 except:
                     _LG.warning(f"Failed to read {fname}")
-                    
+
+            file_count += 1  # Increment file counter
 
     if valid_f is not None:
         valid_f.close()
@@ -99,6 +100,7 @@ if __name__ == "__main__":
     parser.add_argument("--valid-percent", type=float, default=0.001)
     parser.add_argument("--seed", type=int, default=1317)
     parser.add_argument("--extension", type=str, default="flac")
+    parser.add_argument("--file-limit", type=int, default=1000, help="number of files to process")  # Add argument for file limit
     args = parser.parse_args()
 
     create_tsv(
@@ -107,5 +109,5 @@ if __name__ == "__main__":
         valid_percent=args.valid_percent,
         seed=args.seed,
         extension=args.extension,
+        file_limit=args.file_limit  # Pass the file limit argument
     )
-
