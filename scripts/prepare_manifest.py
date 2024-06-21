@@ -13,12 +13,6 @@ from tqdm import tqdm
 
 _LG = logging.getLogger(__name__)
 
-file_data_path = Path('scripts/Selected_501_files.csv')
-file_data = pd.read_csv(file_data_path)
-
-chunk_audio_data_path = Path('scripts/extract_correct_music_speech_timings.csv')
-chunk_audio_data = pd.read_csv(chunk_audio_data_path)
-
 # all_raga = file_data['processed_raga_names'].unique()
 
 def prepare_pre_train_parent_files(test_ratio, raga_files_dict):
@@ -35,7 +29,7 @@ def prepare_pre_train_parent_files(test_ratio, raga_files_dict):
             
     return X_pre_train, X_pre_val
 
-def form_pretrain_chunk_data(X,root_dir):
+def form_pretrain_chunk_data(X,root_dir,chunk_audio_data):
     X_data = []
     
     for i in range(len(X)):
@@ -53,6 +47,8 @@ def form_pretrain_chunk_data(X,root_dir):
 def create_tsv(
     root_dir: Union[str, Path],
     out_dir: Union[str, Path],
+    csv_file_1: Union[str, Path],
+    csv_file_2: Union[str, Path],
     valid_percent: float = 0.01,
     seed: int = 1317,
     extension: str = "flac",
@@ -62,6 +58,8 @@ def create_tsv(
     Args:
         root_dir (str or Path): The directory of the dataset.
         out_dir (str or Path): The directory to store the file lists.
+        csv_file_1 (str or Path): The directory which contains Selected_501_files.csv
+        csv_file_2 (str or Path): The directory which contains extract_correct_music_speech_timings.csv
         valid_percent (float, optional): The percentage of data for validation. (Default: 0.01)
         seed (int): The seed for randomly selecting the validation files.
         extension (str, optional): The extension of audio files. (Default: ``flac``)
@@ -69,6 +67,11 @@ def create_tsv(
     Returns:
         None
     """
+    file_data_path = Path(csv_file_1)
+    file_data = pd.read_csv(file_data_path)
+    
+    chunk_audio_data_path = Path(csv_file_2)
+    chunk_audio_data = pd.read_csv(chunk_audio_data_path)
 
     raga_counts = Counter(file_data['processed_raga_names'])
     using_raga = [raga for raga, count in raga_counts.items() if count >= num_files_per_raga]
@@ -83,8 +86,11 @@ def create_tsv(
         raga_files_dict[raga] = raga_files
     
     X_pre_train_parent,X_pre_validate_parent = prepare_pre_train_parent_files(valid_percent, raga_files_dict)
-    X_pre_train_chunk = form_pretrain_chunk_data(X_pre_train_parent,root_dir)
-    X_pre_validate_chunk = form_pretrain_chunk_data(X_pre_validate_parent,root_dir)
+    X_pre_train_chunk = form_pretrain_chunk_data(X_pre_train_parent,root_dir,chunk_audio_data)
+    X_pre_validate_chunk = form_pretrain_chunk_data(X_pre_validate_parent,root_dir,chunk_audio_data)
+    X_pre_train_chunk_set = set(X_pre_train_chunk)
+    X_pre_validate_chunk_set = set(X_pre_validate_chunk)
+
 
     assert valid_percent >= 0 and valid_percent <= 1.0
 
@@ -148,8 +154,6 @@ def create_tsv(
                 except:
                     _LG.warning(f"Failed to read {fname}")
 
-            file_count += 1  # Increment file counter
-
     if valid_f is not None:
         valid_f.close()
     _LG.info("Finished creating the file lists successfully")
@@ -160,6 +164,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare manifest files for training")
     parser.add_argument("--root-dir", type=str, default="data/audio_folder", help="root dir of the audio files, must use absolute path")
     parser.add_argument("--converted-root-dir", type=str, default="data/audio_folder_converted", help="root dir of the new audio files folder, must use absolute path")
+    parser.add_argument("--csv-file-1", type=str, default="scripts/Selected_501_files.csv", help="wrong directory of Selected_501_files.csv")
+    parser.add_argument("--csv-file-2", type=str, default="scripts/extract_correct_music_speech_timings.csv", help="wrong directory of extract_correct_music_speech_timings.csv")
     parser.add_argument("--target-rate", type=int, default=-1, help="")
     parser.add_argument("--out-dir", type=str, default="data/audio_manifest")
     parser.add_argument("--valid-percent", type=float, default=0.001)
@@ -171,8 +177,10 @@ if __name__ == "__main__":
     create_tsv(
         root_dir=args.root_dir,
         out_dir=args.out_dir,
+        csv_file_1=args.csv_file_1,
+        csv_file_2=args.csv_file_2,
         valid_percent=args.valid_percent,
         seed=args.seed,
         extension=args.extension,
-        file_limit=args.file_limit  # Pass the file limit argument
+        num_files_per_raga=args.num_files_per_raga 
     )
